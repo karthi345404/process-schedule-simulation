@@ -1,0 +1,427 @@
+<!doctype html>
+<html>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content="width = device-width; initial-scale = 1.0">
+<title> CPU SCHEDULING ALGORITHMS </title>
+<script src="new.js"></script>
+<style>
+	.error
+	{
+		color:red;
+	}
+	.bordered
+	{
+		border:1px solid black;
+		width:100%;
+	}
+	.bordered td,.bordered th
+	{
+		border:1px solid black;
+		padding:3px;
+	}
+	#procinput td>input
+	{
+		width:100%;
+		box-sizing:border-box;
+		margin:0;
+	}
+	.bordered input
+	{
+		border:1px solid #ccc;
+		border-radius:2pt;
+		padding:3pt;
+	}
+	.bordered input[disabled]
+	{
+		background-color:#ccc;
+	}
+	
+	.form td>*
+	{
+		box-sizing:border-box;
+		margin:0;
+		width:100%;
+	}
+	
+</style>
+</head>
+<body>
+<form>
+	<table class=form >
+	<tr>
+	<td><label for="rowcount">Number of processes </label></td>
+	<td> : </td><td><input type="number" name=rowcount id=rowcount value=4 min=1 /></td>
+	<td><span id=rowcounterr class=error></span></td>
+	</tr><tr>
+	<td><label for="algorithm">Algorithm </label></td>
+	<td> : </td><td><select id=algorithm name=algorithm onchange=>
+	<option value="fcfs">First come first served(FCFS)</option>
+	<option value="sjf">Non Preemptive Shortest Job First(SJF)</option>
+	<option value="rr">Round Robin Algorithm</option>
+	<option value="ps">Non Preemptive Priority Scheduling</option>
+	</select></td></tr>
+	<tr id=quantumtimerow><td>Quantum time</td><td> : </td><td><input type=number id=quantumtime min=1 /></td><td><span class=error id=quantumtimeerror></span></td>
+	</tr></table>
+	<table class=bordered>
+	<thead><tr><th>PID</th><th>Arrival Time</th><th>Burst Time</th><th>Priority</th></tr></thead>
+	<tbody id=procinput></tbody>
+	</table>
+	<span class=error id=tablevalerror></span>
+	<br><br>
+	<button type=button id=calc>Calculate</button>
+	<br><br>
+	<table class=bordered>
+	<thead><tr><th>PID</th><th>Turn Around Time</th><th>Waiting Time</th></tr></thead>
+	<tbody id=procoutput></tbody>
+	</table>
+</form>
+<noscript class=error style="font-size:24px">
+Oops!Javascript seems to be disabled... 
+<br><br>
+NOTE: Kindly open the downloaded file AFTER DOWNLOADING from teams or check your browser settings. Tested on firefox, but all latest browsers with Javascript enabled should work.
+</noscript>
+<script type="text/javascript">
+	'use strict';
+	var row=document.querySelector('#rowcount').value;
+// 	var cols=['PID','Arrival Time','Burst Time','Priority'];
+	var procinput=document.querySelector('#procinput');
+	var procoutput=document.querySelector('#procoutput');
+	var quantumtimerow=document.querySelector('#quantumtimerow');
+	var oldrowcount=0;
+	
+	class proc{
+		constructor(pid,arrival,burst,priority)
+		{
+			this.pid=pid;
+			this.arrival=arrival;
+			this.burst=burst;
+			this.priority=priority;
+		}
+	}
+	
+	class opproc{
+		constructor(pid,turnaround,waiting)
+		{
+			this.pid=pid;
+			this.turnaround=turnaround;
+			this.waiting=waiting;
+		}
+	}
+	
+	createtable(row);
+	disablecols();
+	
+	document.querySelector('#algorithm').addEventListener('change',disablecols);
+	
+	function disablecols()
+	{
+		var algo=document.querySelector('#algorithm').value;
+		var i;
+		if(algo=='fcfs')
+		{
+			console.log ('fcfs');
+			quantumtimerow.style.display="none";
+			for (i of procinput.rows)
+			{
+				i.cells[1].childNodes[0].disabled=false;
+				i.cells[3].childNodes[0].disabled=true;
+			}
+		}
+		else if(algo=='sjf')
+		{
+			console.log ('sjf');
+			quantumtimerow.style.display="none";
+			for (i of procinput.rows)
+			{
+				i.cells[1].childNodes[0].disabled=true;
+				i.cells[3].childNodes[0].disabled=true;
+			}
+		}
+		else if(algo=='rr')
+		{
+			console.log ('rr');
+			quantumtimerow.style.display="";
+			for (i of procinput.rows)
+			{
+				i.cells[1].childNodes[0].disabled=false;
+				i.cells[3].childNodes[0].disabled=true;
+			}
+		}
+		else if(algo=='ps')
+		{
+			console.log ('ps');
+			quantumtimerow.style.display="none";
+			for (i of procinput.rows)
+			{
+				i.cells[1].childNodes[0].disabled=true;
+				i.cells[3].childNodes[0].disabled=false;
+			}
+		}
+	}
+	
+	document.querySelector('#rowcount').addEventListener("change",function()
+	{
+		if (this.value<=0)
+		{
+			document.querySelector("#rowcounterr").innerText="Row count is less than 1";
+		}
+		else
+		{
+			document.querySelector("#rowcounterr").innerText="";
+			row=this.value;
+			createtable(row);
+		}
+	}
+	);
+	
+	function createtable(rowcount)
+	{
+		if (rowcount==null || rowcount==undefined || rowcount<1)
+		{
+			document.querySelector('#rowcounterr').innerText='internal error : kindly try setting process count again';
+			console.log('rowcount not set',rowcount);
+			return;
+		}
+		var i,j,currentrow,currentcell;
+		if (rowcount>oldrowcount)
+		{
+			for(i=oldrowcount;i<rowcount;i++)
+			{
+				currentrow=procinput.insertRow(-1);
+				for(j=0;j<4;j++)
+				{
+					currentcell=currentrow.insertCell(j);
+					currentcell.innerHTML="<input type=number min=0 max=4096/>";
+				}
+			}
+		}
+		else
+		{
+			for(i=oldrowcount;i>rowcount;i--)
+			{
+				procinput.deleteRow(-1);
+			}
+		}
+		oldrowcount=rowcount;
+		disablecols();
+	}
+	
+	document.querySelector('#calc').addEventListener("click",function()
+	{
+		var currentrow;
+		var inputarray=[];
+		var outputarray;
+		for (currentrow of procinput.rows)
+		{
+			inputarray.push(new proc(parseInt(currentrow.cells[0].childNodes[0].value),parseInt(currentrow.cells[1].childNodes[0].value),parseInt(currentrow.cells[2].childNodes[0].value),parseInt(currentrow.cells[3].childNodes[0].value)));
+		}
+		console.log('inputarray : ',inputarray);
+		var value=document.querySelector('#algorithm').value;
+		if (value=='fcfs')
+		{
+			outputarray=fcfs(inputarray);
+			console.log('outputarray : ',outputarray);
+			if (outputarray)
+			{
+				createoptable(outputarray);
+				document.querySelector('#tablevalerror').innerText="";
+			}
+			else
+				document.querySelector('#tablevalerror').innerText="Empty or invalid entries found";
+		}
+		else if (value=='sjf')
+		{
+			outputarray=sjf(inputarray);
+			console.log('outputarray : ',outputarray);
+			if (outputarray)
+			{
+				createoptable(outputarray);
+				document.querySelector('#tablevalerror').innerText="";
+			}
+			else
+				document.querySelector('#tablevalerror').innerText="Empty or invalid entries found";
+		}
+		else if (value=='rr')
+		{
+			outputarray=rr(inputarray,parseInt(document.querySelector('#quantumtime').value));
+			console.log('outputarray : ',outputarray);
+			if (outputarray)
+			{
+				createoptable(outputarray);
+				document.querySelector('#tablevalerror').innerText="";
+			}
+			else
+				document.querySelector('#tablevalerror').innerText="Empty or invalid entries found";
+		}
+		else if (value=='ps')
+		{
+			outputarray=ps(inputarray);
+			console.log('outputarray : ',outputarray);
+			if (outputarray)
+			{
+				createoptable(outputarray);
+				document.querySelector('#tablevalerror').innerText="";
+			}
+			else
+				document.querySelector('#tablevalerror').innerText="Empty or invalid entries found";
+		}
+		else console.log ('invalid algorithm',value);
+	return false;
+	}
+	);
+	
+	function createoptable(outputarray)
+	{
+		var current,currentrow,currentcell,item;
+		procoutput.innerHTML="";
+		for(current of outputarray)
+		{
+			currentrow=procoutput.insertRow(-1);
+			for (item in current)
+			{
+				currentcell=currentrow.insertCell(-1);
+				currentcell.innerText=current[item];
+			}
+		}
+	}
+	
+	function fcfs(inputarray)
+	{
+		var outputarray=[];
+		var currenttime=0;
+		var tatime;
+		var avgtat=0,avgwt=0;
+		var i;
+		inputarray.sort((a,b)=>a.arrival-b.arrival);
+		for(i of inputarray)
+		{
+			if (!((i.arrival || i.arrival==0) && i.pid && i.burst))
+				return undefined;
+			if (currenttime<i.arrival)
+				currenttime=i.arrival;
+			currenttime += i.burst;
+			tatime=currenttime - i.arrival;
+			outputarray.push(new opproc(i.pid,tatime,tatime - i.burst));
+		}
+		for(i of outputarray)
+		{
+			avgtat+=i.turnaround;
+			avgwt+=i.waiting;
+		}
+		outputarray.push(new opproc('average',avgtat/outputarray.length,avgwt/outputarray.length));
+		return outputarray;
+	}
+	
+	function sjf(inputarray)
+	{
+		var outputarray=[];
+		var currenttime=0;
+		var avgtat=0,avgwt=0;
+		var i;
+		inputarray.sort((a,b)=>a.burst-b.burst);
+		for(i of inputarray)
+		{
+			if (!(i.pid && i.burst))
+				return undefined;
+			currenttime += i.burst;
+			outputarray.push(new opproc(i.pid,currenttime,currenttime - i.burst));
+		}
+		for(i of outputarray)
+		{
+			avgtat+=i.turnaround;
+			avgwt+=i.waiting;
+		}
+		outputarray.push(new opproc('average',avgtat/outputarray.length,avgwt/outputarray.length));
+		return outputarray;
+	}
+	
+	function ps(inputarray)
+	{
+		var outputarray=[];
+		var currenttime=0;
+		var avgtat=0,avgwt=0;
+		var i;
+		inputarray.sort((a,b)=>a.burst-b.burst);
+		inputarray.sort((a,b)=>b.priority-a.priority);
+		for(i of inputarray)
+		{
+			if (!(i.pid && i.burst && i.priority))
+				return undefined;
+			currenttime += i.burst;
+			console.log('currenttime : ',currenttime);
+			outputarray.push(new opproc(i.pid,currenttime,currenttime - i.burst));
+		}
+		for(i of outputarray)
+		{
+			avgtat+=i.turnaround;
+			avgwt+=i.waiting;
+		}
+		outputarray.push(new opproc('average',avgtat/outputarray.length,avgwt/outputarray.length));
+		return outputarray;
+	}
+	
+	function rr(inputarray,quantumtime)
+	{
+		if (!quantumtime)
+			return;
+		var outputarray=[];
+		var i,currenttime=0,counter=0,flag;
+		var avgtat=0,avgwt=0;
+		inputarray.sort((a,b)=>a.arrival-b.arrival);
+		for (i of inputarray)
+		{
+			if(!(i.pid && (i.arrival || i.arrival==0) && i.burst))
+				return undefined;
+			outputarray.push(new opproc(i.pid,0,i.burst));
+		}
+		while(inputarray.length-counter!=0)
+		{
+			flag=0;
+			for (i=0;i<inputarray.length;i++)
+			{
+				if (inputarray[i].burst==0) 
+				{
+					continue;
+				}
+				if(flag==0)
+				{
+					if(inputarray[i].arrival>currenttime)
+						currenttime=inputarray[i].arrival;
+					flag=1;
+				}
+				if (inputarray[i].arrival>currenttime)
+					break;
+				if (inputarray[i].burst<=quantumtime)
+				{
+					currenttime+=inputarray[i].burst;
+					outputarray[i].turnaround=currenttime - inputarray[i].arrival;
+					inputarray[i].burst=0;
+					counter+=1;
+				}
+				else
+				{
+					currenttime+=quantumtime;
+					inputarray[i].burst-=quantumtime;
+				}
+				if (counter>10)
+				{
+					console.log(outputarray);
+				 return undefined;
+				}
+				console.log('forend : ',currenttime,'counter',counter);
+			}
+			console.log('wend');
+		}
+		for(i of outputarray)
+		{
+			avgtat+=i.turnaround;
+			i.waiting=i.turnaround-i.waiting;
+			avgwt+=i.waiting;
+		}
+		outputarray.push(new opproc('average',avgtat/outputarray.length,avgwt/outputarray.length));
+		return outputarray;
+	}
+</script>
+</body>
+</html>
